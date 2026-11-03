@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'
+
+jobs:
+  validate-structure:
+    name: Verify Repo Structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify key files exist
+        run: |
+          test -f package.json || (echo "package.json missing" && exit 1)
+          test -f vite.config.js || (echo "vite.config.js missing" && exit 1)
+          test -d src || (echo "src/ directory missing" && exit 1)
+          test -f README.md || (echo "README.md missing" && exit 1)
+          test -f LICENSE || (echo "LICENSE missing" && exit 1)
+          test -f .gitignore || (echo ".gitignore missing" && exit 1)
+          echo "✅ All required files present"
+
+  validate-json:
+    name: Validate JSON
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate package.json & package-lock.json
+        run: |
+          python3 -m json.tool package.json > /dev/null
+          python3 -m json.tool package-lock.json > /dev/null
+          echo "✅ JSON valid"
+
+  npm-audit:
+    name: npm Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Run npm audit
+        run: npm audit --audit-level=high || true
+
+  build:
+    name: Production Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Verify build output
+        run: |
+          test -d dist || (echo "dist/ missing after build" && exit 1)
+          test -f dist/index.html || (echo "index.html missing in dist/" && exit 1)
+          echo "✅ Build successful"
+
